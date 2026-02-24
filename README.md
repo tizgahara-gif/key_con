@@ -23,9 +23,11 @@
 1. 3D View のサイドバー（`N`） > `Tool` > `KeyCon Display` で `Start Key Display` を押す。
 2. あるいは `Ctrl+Shift+F8` で ON/OFF。
 3. Preferences で以下を調整:
-   - 表示位置（X/Y）
+   - 表示位置（左マージン / 上マージン）
    - フォントサイズ
    - 履歴件数
    - TTL
    - modifier / area 表示有無
    - 描画対象エリア
+
+※ デフォルトは左上寄せ表示になっており、右側サイドバー（Nパネル）と重なりにくい配置です。

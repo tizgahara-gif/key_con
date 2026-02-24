@@ -64,8 +64,8 @@ IGNORE_EVENT_TYPES = {
 class KEYCON_Preferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
-    pos_x: IntProperty(name="X", default=32, min=0)
-    pos_y: IntProperty(name="Y", default=120, min=0)
+    pos_x: IntProperty(name="X Margin", default=24, min=0)
+    pos_y: IntProperty(name="Top Margin", default=24, min=0)
     font_size: IntProperty(name="Font Size", default=20, min=10, max=96)
     max_history: IntProperty(name="Max History", default=6, min=1, max=30)
     ttl_seconds: FloatProperty(name="TTL (sec)", default=2.0, min=0.2, max=10.0)
@@ -197,8 +197,11 @@ def _draw_history(area_type):
     blf.size(0, prefs.font_size)
     line_height = int(prefs.font_size * 1.35)
 
+    region = bpy.context.region
+    region_height = region.height if region else 0
+
     x = prefs.pos_x
-    y = prefs.pos_y
+    y = max(line_height, region_height - prefs.pos_y - line_height)
 
     for i, item in enumerate(reversed(items[-prefs.max_history:])):
         age = now - item["time"]
