@@ -9,10 +9,11 @@
 - modifier を含むリアルタイムキー表示（例: `Ctrl+Shift+A`）
 - 直近 N 件の履歴表示
 - TTL による自動消去 + フェードアウト
-- アドオン専用ショートカット登録/解除（`Ctrl+Shift+F8`）
+- アドオン専用ショートカット登録/解除（`Ctrl+Shift+F8` / `Ctrl+Shift+F9`）
 - Preferences で位置・サイズ・表示項目を変更
 - Blendファイルを開いてからの経過時間を15分単位で記録
 - 15分ごとに30秒間、経過時間通知をオーバーレイ表示
+- 任意キー（デフォルト: `Ctrl+Shift+F9`）で現在の経過時間を表示
 
 ## インストール
 
@@ -24,7 +25,9 @@
 
 1. 3D View のサイドバー（`N`） > `Tool` > `KeyCon Display` で `Start Key Display` を押す。
 2. あるいは `Ctrl+Shift+F8` で ON/OFF。
-3. Preferences で以下を調整:
+3. `Ctrl+Shift+F9` で現在の経過時間（HH:MM:SS）を表示。
+4. Blender のキーマップ設定で `keycon.show_elapsed_time` に任意キーを割り当て可能。
+5. Preferences で以下を調整:
    - 表示位置（左マージン / 上マージン）
    - フォントサイズ
    - 履歴件数

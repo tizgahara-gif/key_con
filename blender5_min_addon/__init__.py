@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Blender 5 Key Press Display",
     "author": "Your Name",
-    "version": (0, 3, 0),
+    "version": (0, 4, 0),
     "blender": (5, 0, 0),
     "location": "View3D / Image Editor / Node Editor",
     "description": "Display pressed keys in real time with history and auto clear",
@@ -196,6 +196,18 @@ def _session_notice_text():
     return f"Blend file open: {minutes} min"
 
 
+def _elapsed_seconds_now():
+    return max(0.0, time.monotonic() - STATE["session_started_at"])
+
+
+def _elapsed_time_text():
+    total = int(_elapsed_seconds_now())
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    seconds = total % 60
+    return f"Blend file open: {hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def _tag_redraw_targets():
     wm = bpy.context.window_manager
     if not wm:
@@ -337,6 +349,26 @@ class KEYCON_OT_toggle_display(bpy.types.Operator):
         return {"PASS_THROUGH"}
 
 
+
+
+class KEYCON_OT_show_elapsed_time(bpy.types.Operator):
+    """Show current blend session elapsed time"""
+
+    bl_idname = "keycon.show_elapsed_time"
+    bl_label = "Show Elapsed Time"
+
+    def execute(self, context):
+        text = _elapsed_time_text()
+        self.report({"INFO"}, text)
+
+        if STATE["running"]:
+            area_type = context.area.type if context.area else "UNKNOWN"
+            _append_history(text, area_type)
+            _tag_redraw_targets()
+
+        return {"FINISHED"}
+
+
 class KEYCON_PT_panel(bpy.types.Panel):
     bl_label = "KeyCon Display"
     bl_idname = "KEYCON_PT_panel"
@@ -352,13 +384,14 @@ class KEYCON_PT_panel(bpy.types.Panel):
         prefs = _prefs()
         if prefs:
             layout.label(text=f"History: {len(STATE['history'])}/{prefs.max_history}")
-            minutes = STATE["elapsed_quarters"] * 15
-            layout.label(text=f"Session: {minutes} min")
+            layout.label(text=_elapsed_time_text())
+            layout.operator(KEYCON_OT_show_elapsed_time.bl_idname, text="Show Elapsed Now")
 
 
 classes = (
     KEYCON_Preferences,
     KEYCON_OT_toggle_display,
+    KEYCON_OT_show_elapsed_time,
     KEYCON_PT_panel,
 )
 
@@ -371,6 +404,9 @@ def register_keymaps():
 
     km = kc.keymaps.new(name="Window", space_type="EMPTY")
     kmi = km.keymap_items.new("keycon.toggle_display", type="F8", value="PRESS", ctrl=True, shift=True)
+    ADDON_KEYMAPS.append((km, kmi))
+
+    kmi = km.keymap_items.new("keycon.show_elapsed_time", type="F9", value="PRESS", ctrl=True, shift=True)
     ADDON_KEYMAPS.append((km, kmi))
 
 
