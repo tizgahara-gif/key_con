@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Blender 5 Key Press Display",
     "author": "Your Name",
-    "version": (0, 2, 0),
+    "version": (0, 3, 0),
     "blender": (5, 0, 0),
     "location": "View3D / Image Editor / Node Editor",
     "description": "Display pressed keys in real time with history and auto clear",
@@ -12,6 +12,7 @@ import time
 
 import blf
 import bpy
+from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, FloatProperty, IntProperty
 
 STATE = {
@@ -19,6 +20,10 @@ STATE = {
     "history": [],  # [{"text": str, "time": float, "area": str}]
     "draw_handlers": {},
     "timer": None,
+    "session_started_at": time.monotonic(),
+    "next_announce_at": time.monotonic() + 900.0,
+    "announce_until": 0.0,
+    "elapsed_quarters": 0,
 }
 
 ADDON_KEYMAPS = []
@@ -72,6 +77,7 @@ class KEYCON_Preferences(bpy.types.AddonPreferences):
 
     show_modifiers: BoolProperty(name="Show Modifiers", default=True)
     show_area: BoolProperty(name="Show Area", default=False)
+    show_session_notice: BoolProperty(name="Show 15-min Session Notice", default=True)
 
     target_view_3d: BoolProperty(name="View3D", default=True)
     target_image_editor: BoolProperty(name="Image Editor", default=True)
@@ -93,6 +99,7 @@ class KEYCON_Preferences(bpy.types.AddonPreferences):
         col.label(text="Shown Items")
         col.prop(self, "show_modifiers")
         col.prop(self, "show_area")
+        col.prop(self, "show_session_notice")
 
         col = layout.column(align=True)
         col.label(text="Target Areas")
@@ -162,6 +169,33 @@ def _prune_history():
     STATE["history"] = [item for item in STATE["history"] if now - item["time"] <= ttl]
 
 
+def _reset_session_clock():
+    now = time.monotonic()
+    STATE["session_started_at"] = now
+    STATE["next_announce_at"] = now + 900.0
+    STATE["announce_until"] = 0.0
+    STATE["elapsed_quarters"] = 0
+
+
+@persistent
+def _on_load_post(_dummy):
+    _reset_session_clock()
+
+
+def _update_session_notice():
+    now = time.monotonic()
+
+    while now >= STATE["next_announce_at"]:
+        STATE["elapsed_quarters"] += 1
+        STATE["announce_until"] = now + 30.0
+        STATE["next_announce_at"] += 900.0
+
+
+def _session_notice_text():
+    minutes = STATE["elapsed_quarters"] * 15
+    return f"Blend file open: {minutes} min"
+
+
 def _tag_redraw_targets():
     wm = bpy.context.window_manager
     if not wm:
@@ -185,14 +219,6 @@ def _draw_history(area_type):
         return
 
     now = time.monotonic()
-    items = [
-        item
-        for item in STATE["history"]
-        if now - item["time"] <= prefs.ttl_seconds
-    ]
-
-    if not items:
-        return
 
     blf.size(0, prefs.font_size)
     line_height = int(prefs.font_size * 1.35)
@@ -203,6 +229,23 @@ def _draw_history(area_type):
     x = prefs.pos_x
     y = max(line_height, region_height - prefs.pos_y - line_height)
 
+    if prefs.show_session_notice and now <= STATE["announce_until"]:
+        notice_age = STATE["announce_until"] - now
+        alpha = max(0.25, min(1.0, notice_age / 30.0))
+        blf.position(0, x, y, 0)
+        blf.color(0, 1.0, 0.85, 0.2, alpha)
+        blf.draw(0, _session_notice_text())
+        y -= line_height
+
+    items = [
+        item
+        for item in STATE["history"]
+        if now - item["time"] <= prefs.ttl_seconds
+    ]
+
+    if not items:
+        return
+
     for i, item in enumerate(reversed(items[-prefs.max_history:])):
         age = now - item["time"]
         alpha = max(0.0, min(1.0, 1.0 - (age / max(0.001, prefs.ttl_seconds))))
@@ -211,7 +254,7 @@ def _draw_history(area_type):
         if prefs.show_area:
             text = f"[{item['area']}] {text}"
 
-        blf.position(0, x, y + (i * line_height), 0)
+        blf.position(0, x, y - (i * line_height), 0)
         blf.color(0, 1.0, 1.0, 1.0, alpha)
         blf.draw(0, text)
 
@@ -279,6 +322,7 @@ class KEYCON_OT_toggle_display(bpy.types.Operator):
 
         if event.type == "TIMER":
             _prune_history()
+            _update_session_notice()
             _tag_redraw_targets()
             return {"PASS_THROUGH"}
 
@@ -308,6 +352,8 @@ class KEYCON_PT_panel(bpy.types.Panel):
         prefs = _prefs()
         if prefs:
             layout.label(text=f"History: {len(STATE['history'])}/{prefs.max_history}")
+            minutes = STATE["elapsed_quarters"] * 15
+            layout.label(text=f"Session: {minutes} min")
 
 
 classes = (
@@ -337,12 +383,20 @@ def unregister_keymaps():
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+
+    _reset_session_clock()
+    if _on_load_post not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_on_load_post)
+
     register_keymaps()
 
 
 def unregister():
     STATE["running"] = False
     STATE["history"].clear()
+
+    if _on_load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_on_load_post)
 
     if STATE["timer"] and bpy.context.window_manager:
         bpy.context.window_manager.event_timer_remove(STATE["timer"])
